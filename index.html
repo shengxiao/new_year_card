@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>李大聪明和金小胖子的爱情之旅</title>
     
     <!-- 引入库 -->
@@ -14,15 +14,16 @@
 
     <style>
         /* === 全局样式 === */
+        * { box-sizing: border-box; }
         body {
             font-family: 'Noto Serif SC', serif;
             background: linear-gradient(180deg, #1e3c72 0%, #2a5298 40%, #ff9a9e 100%);
             background-image: linear-gradient(180deg, #1e3c72cc 0%, #2a5298cc 40%, #ff9a9ecc 100%), url('https://www.transparenttextures.com/patterns/stardust.png');
             color: #333;
             overflow: hidden; 
-            /* 修复移动端高度计算问题 */
+            width: 100vw;
             height: 100vh;
-            height: -webkit-fill-available;
+            touch-action: none; 
         }
 
         /* === 3D 翻转 === */
@@ -49,15 +50,88 @@
         }
         .card-front { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); z-index: 2; }
         
-        /* === 背面布局 === */
+        /* === 背面布局 (Grid 布局解决上下分屏) === */
         .card-back { 
             transform: rotateY(180deg); 
             background: rgba(255, 250, 250, 0.95); 
             backdrop-filter: blur(10px); 
-            z-index: 1; 
-            display: flex; 
-            flex-direction: column; 
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
         }
+
+        /* 头部固定 */
+        .header-area { flex: none; height: 60px; }
+
+        /* 内容区：Grid布局 */
+        .content-grid {
+            flex: 1;
+            display: grid;
+            grid-template-rows: 40% 60%; /* 上面列表占40%，下面地图占60% */
+            overflow: hidden;
+        }
+        
+        /* PC端适配 */
+        @media (min-width: 768px) {
+            .content-grid {
+                grid-template-rows: 1fr;
+                grid-template-columns: 35% 65%;
+            }
+        }
+
+        /* 列表区域 */
+        .list-panel {
+            background: white;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid #eee;
+            overflow: hidden;
+        }
+        @media (min-width: 768px) {
+            .list-panel { border-bottom: none; border-right: 1px solid #eee; }
+        }
+
+        /* 标签容器 (关键修改) */
+        .tags-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            align-content: flex-start; /* 内容少了靠上，多了滚动 */
+            display: flex;
+            flex-wrap: wrap; /* 自动换行 */
+            gap: 8px; /* 间距 */
+        }
+
+        /* 标签样式 */
+        .wish-tag {
+            display: inline-flex;
+            align-items: center;
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #dbeafe;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            flex: 0 0 auto; /* 防止被压缩 */
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .wish-tag:active { transform: scale(0.95); background: #dbeafe; }
+        .wish-tag .delete-icon {
+            margin-left: 6px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+        .wish-tag .delete-icon:hover { background: #ef4444; color: white; }
 
         /* === 装饰 === */
         .dashed-line-divider { border-top: 2px dashed #cbd5e1; position: relative; }
@@ -80,8 +154,7 @@
         /* === 飞机动画 === */
         #plane-layer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 9990; 
-            display: none;
+            pointer-events: none; z-index: 9990; display: none;
         }
         .fly-animation { display: block !important; animation: flyAcross 2.5s ease-in-out forwards; }
         @keyframes flyAcross {
@@ -90,7 +163,7 @@
             100% { transform: translate(100vw, -50vh) scale(1.5) rotate(45deg); opacity: 0; }
         }
         
-        /* 隐藏滚动条但保留功能 */
+        /* 隐藏滚动条 */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
@@ -99,8 +172,7 @@
             border: 2px solid #f3f3f3;
             border-top: 2px solid #3498db;
             border-radius: 50%;
-            width: 16px;
-            height: 16px;
+            width: 16px; height: 16px;
             animation: spin 1s linear infinite;
         }
         
@@ -112,7 +184,7 @@
         }
     </style>
 </head>
-<body class="h-screen w-full flex items-center justify-center relative">
+<body class="h-screen w-full flex items-center justify-center relative bg-gray-900">
 
     <!-- 1. 全局加载遮罩 -->
     <div id="globalLoader" class="rounded-3xl w-[90%] max-w-[850px] h-[85vh] md:h-[600px]">
@@ -128,7 +200,7 @@
         </svg>
     </div>
 
-    <!-- 3. 音乐播放器 (z-index 设为最高，确保可点) -->
+    <!-- 3. 音乐播放器 -->
     <div class="fixed bottom-6 right-6 z-[10000] flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 cursor-pointer hover:bg-white/20 transition text-white shadow-lg" id="musicPlayer" onclick="toggleMusic()">
         <div class="w-8 h-8 rounded-full bg-black flex items-center justify-center music-disc overflow-hidden border-2 border-gray-600">
             <div class="w-2 h-2 bg-white rounded-full relative z-10"></div>
@@ -138,7 +210,6 @@
             <p id="musicStatus">OFF</p>
         </div>
         <audio id="bgm" loop preload="auto">
-            <!-- Kiss The Rain -->
             <source src="./River_Flows_In_You.mp3" type="audio/mpeg">
         </audio>
     </div>
@@ -178,46 +249,42 @@
                 </div>
             </div>
 
-            <!-- ====== 背面：2026 愿望 (关键修复版：Grid 布局) ====== -->
+            <!-- ====== 背面：2026 愿望 (新布局：标签云) ====== -->
             <div class="card-face card-back">
-                <!-- 头部：固定不压缩 -->
-                <div class="p-5 pb-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 flex-none">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h1 class="text-3xl md:text-4xl font-serif font-bold text-gray-800 mt-1">2026 幸福航班</h1>
-                        </div>
-                        <button onclick="flipCard()" class="text-xs text-gray-400 hover:text-gray-600 underline">回看 2025</button>
+                
+                <!-- 1. 顶部标题栏 -->
+                <div class="header-area p-4 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-sm z-20">
+                    <div>
+                        <h1 class="text-2xl font-serif font-bold text-gray-800">2026 幸福航班</h1>
                     </div>
+                    <button onclick="flipCard()" class="text-xs text-gray-400 hover:text-gray-600 underline">回看 2025</button>
                 </div>
 
-                <!-- 关键修复：使用 Grid 布局 (grid-rows-2) 代替 Flex 布局 -->
-                <!-- 手机端强制分为上下两行，PC端恢复左右布局 -->
-                <div class="grid grid-rows-2 md:flex md:flex-row flex-grow overflow-hidden relative">
-                    
-                    <!-- 上半部分：列表 (使用 min-h-0 允许子元素滚动) -->
-                    <div class="w-full md:w-1/3 bg-white border-r border-gray-100 flex flex-col z-10 shadow-lg md:shadow-none min-h-0 md:h-full">
-                        
-                        <!-- 输入框 -->
-                        <div class="p-3 border-b border-gray-100 bg-white z-20 flex-none">
+                <!-- 2. 内容网格 -->
+                <div class="content-grid bg-white">
+                    <!-- 上半部分：标签云 -->
+                    <div class="list-panel">
+                        <!-- 输入框 (紧凑型) -->
+                        <div class="p-3 border-b border-gray-100 flex-none z-10 bg-white shadow-sm">
                             <div class="flex gap-2 relative">
-                                <input type="text" id="wishInput" placeholder="输入城市 (支持中文/英文)" class="flex-1 bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none transition disabled:bg-gray-100">
-                                <button id="addBtn" onclick="addWish()" class="bg-blue-600 text-white rounded px-3 py-2 hover:bg-blue-700 transition shadow-sm disabled:bg-blue-300">
+                                <input type="text" id="wishInput" placeholder="新的一年想去哪里呀？快来添加吧！" class="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-1.5 text-sm focus:ring-2 focus:ring-blue-100 outline-none transition disabled:bg-gray-100">
+                                <button id="addBtn" onclick="addWish()" class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-blue-700 transition shadow-sm disabled:bg-blue-300 flex-none">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                                 </button>
                             </div>
-                            <div id="loadingTips" class="text-[10px] text-blue-500 mt-1 hidden flex items-center gap-1">
-                                <div class="loading-spinner"></div> 正在搜索位置...
+                            <div id="loadingTips" class="text-[10px] text-blue-500 mt-1 hidden text-center">
+                                <span class="loading-spinner inline-block w-3 h-3 align-middle mr-1"></span>正在搜索位置...
                             </div>
                         </div>
-                        
-                        <!-- 列表滚动区 (关键：flex-grow + overflow-y-auto) -->
-                        <div class="flex-grow overflow-y-auto p-2 scrollbar-hide" id="wishListContainer">
-                            <!-- 列表内容会注入到这里 -->
+
+                        <!-- 标签容器 -->
+                        <div class="tags-container scrollbar-hide" id="wishListContainer">
+                            <!-- 标签会在这里生成 -->
                         </div>
                     </div>
 
-                    <!-- 下半部分：地图 (Grid布局会自动填满剩余的一行) -->
-                    <div class="w-full md:w-2/3 md:h-full relative bg-gray-100 min-h-0">
+                    <!-- 下半部分：地图 -->
+                    <div class="relative bg-gray-100 h-full">
                         <div id="map2026" class="map-container rounded-none bg-gray-100"></div>
                         <div class="absolute bottom-2 left-2 bg-white/80 backdrop-blur px-2 py-1 rounded text-[10px] text-gray-500 z-[400] pointer-events-none border border-white/50 shadow-sm">
                             2026 心愿路线
@@ -251,7 +318,7 @@
 
     <script>
         // ============================================
-        // 1. 你的数据配置区
+        // 数据配置区
         // ============================================
 
         const myMemoriesConfig = [
@@ -271,14 +338,13 @@
         const myWishesConfig = ["天津", "哈尔滨", "九江", "济州岛"];
 
         // ============================================
-        // 以下代码自动处理
+        // 脚本逻辑
         // ============================================
 
         const STORAGE_KEY = 'myLoveFlight2026Wishes';
         const GEO_CACHE_KEY = 'myLoveGeoCache';
         const GAODE_LAYER = 'http://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
         
-        // 先设置一下 localStorage
         let geoCacheStr = localStorage.getItem(GEO_CACHE_KEY) || '';
         if (geoCacheStr == '') {
             localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(
@@ -327,36 +393,17 @@
         const musicStatus = document.getElementById('musicStatus');
         const musicBtn = document.getElementById('musicPlayer');
 
-        audio.addEventListener('error', function(e) {
-            console.error("音频加载失败:", e);
-            musicStatus.innerText = "ERR";
-            alert("背景音乐加载失败，请检查网络或更换音频源");
-        });
-
-        audio.addEventListener('ended', function() {
-            this.currentTime = 0;
-            this.play();
-        });
+        audio.addEventListener('error', function(e) { console.error(e); });
+        audio.addEventListener('ended', function() { this.currentTime = 0; this.play(); });
 
         function toggleMusic() {
             if (isPlaying) {
-                audio.pause(); 
-                musicBtn.classList.remove('playing'); 
-                musicStatus.innerText = "OFF"; 
-                isPlaying = false;
+                audio.pause(); musicBtn.classList.remove('playing'); musicStatus.innerText = "OFF"; isPlaying = false;
             } else {
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
-                    playPromise.then(_ => {
-                        musicBtn.classList.add('playing'); 
-                        musicStatus.innerText = "ON"; 
-                        isPlaying = true;
-                    })
-                    .catch(error => {
-                        console.error("播放被阻止:", error);
-                        musicStatus.innerText = "Err";
-                        alert("播放失败。这通常是因为浏览器限制自动播放，请先点击页面其他区域后再试。");
-                    });
+                    playPromise.then(_ => { musicBtn.classList.add('playing'); musicStatus.innerText = "ON"; isPlaying = true; })
+                    .catch(error => { alert("播放失败，请点击页面其他位置重试。"); });
                 }
             }
         }
@@ -426,6 +473,7 @@
 
         function saveWishes(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
+        // === 标签云渲染函数 (新 UI) ===
         const renderWishes = () => {
             const listContainer = document.getElementById('wishListContainer');
             listContainer.innerHTML = '';
@@ -435,23 +483,22 @@
             wishes.forEach(wish => {
                 const marker = L.marker([wish.lat, wish.lng], {icon: createHeartIcon(28)}).addTo(map2026).bindPopup(`<b style="color:#2563eb">${wish.city}</b>`);
                 markers2026.push(marker);
-                const item = document.createElement('div');
-                item.className = "flex items-center justify-between p-3 mb-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-blue-50 hover:shadow-sm transition group border border-transparent hover:border-blue-100 relative flex-none"; 
-                item.onclick = (e) => {
-                    if(e.target.closest('.delete-btn')) return;
+
+                // 创建小标签
+                const tag = document.createElement('div');
+                tag.className = 'wish-tag';
+                tag.innerHTML = `
+                    <span>✈️ ${wish.city}</span>
+                    <span class="delete-icon" onclick="deleteWish(event, ${wish.id})">×</span>
+                `;
+                // 点击标签飞向地图
+                tag.onclick = (e) => {
+                    // 如果点击的是删除按钮，不触发飞行动作
+                    if(e.target.classList.contains('delete-icon')) return;
                     map2026.flyTo([wish.lat, wish.lng], 6, { duration: 1.5 });
                     marker.openPopup();
                 };
-                item.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-lg shadow-sm border border-gray-100 flex-none">✈️</div>
-                        <div class="min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${wish.city}</p><p class="text-[10px] text-gray-400">WAITING FOR US</p></div>
-                    </div>
-                    <button class="delete-btn p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition flex-none" onclick="deleteWish(${wish.id})">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    </button>
-                `;
-                listContainer.appendChild(item);
+                listContainer.appendChild(tag);
             });
         };
 
@@ -472,7 +519,8 @@
             finally { input.disabled = false; addBtn.disabled = false; loadingTips.classList.add('hidden'); input.focus(); }
         };
 
-        const deleteWish = (id) => {
+        const deleteWish = (event, id) => {
+            event.stopPropagation(); // 阻止冒泡
             if(confirm('确定删除吗？')) { wishes = wishes.filter(w => w.id !== id); saveWishes(wishes); renderWishes(); }
         };
 
