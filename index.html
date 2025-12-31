@@ -49,7 +49,7 @@
         }
         .card-front { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); z-index: 2; }
         
-        /* === 关键修复：背面布局 === */
+        /* === 背面布局 === */
         .card-back { 
             transform: rotateY(180deg); 
             background: rgba(255, 250, 250, 0.95); 
@@ -178,7 +178,7 @@
                 </div>
             </div>
 
-            <!-- ====== 背面：2026 愿望 (布局修复版) ====== -->
+            <!-- ====== 背面：2026 愿望 (关键修复版：Grid 布局) ====== -->
             <div class="card-face card-back">
                 <!-- 头部：固定不压缩 -->
                 <div class="p-5 pb-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 flex-none">
@@ -190,13 +190,14 @@
                     </div>
                 </div>
 
-                <!-- 拆分区域：列表和地图 -->
-                <div class="flex flex-col md:flex-row flex-grow overflow-hidden relative">
+                <!-- 关键修复：使用 Grid 布局 (grid-rows-2) 代替 Flex 布局 -->
+                <!-- 手机端强制分为上下两行，PC端恢复左右布局 -->
+                <div class="grid grid-rows-2 md:flex md:flex-row flex-grow overflow-hidden relative">
                     
-                    <!-- 左侧列表 (修复：手机端高度50%，内部Flex结构) -->
-                    <div class="w-full md:w-1/3 bg-white border-r border-gray-100 flex flex-col z-10 shadow-lg md:shadow-none h-[50%] md:h-full">
+                    <!-- 上半部分：列表 (使用 min-h-0 允许子元素滚动) -->
+                    <div class="w-full md:w-1/3 bg-white border-r border-gray-100 flex flex-col z-10 shadow-lg md:shadow-none min-h-0 md:h-full">
                         
-                        <!-- 输入框：固定高度 -->
+                        <!-- 输入框 -->
                         <div class="p-3 border-b border-gray-100 bg-white z-20 flex-none">
                             <div class="flex gap-2 relative">
                                 <input type="text" id="wishInput" placeholder="输入城市 (支持中文/英文)" class="flex-1 bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none transition disabled:bg-gray-100">
@@ -209,12 +210,14 @@
                             </div>
                         </div>
                         
-                        <!-- 列表滚动区 (修复：min-h-0 允许滚动) -->
-                        <div class="flex-grow overflow-y-auto p-2 scrollbar-hide min-h-0" id="wishListContainer"></div>
+                        <!-- 列表滚动区 (关键：flex-grow + overflow-y-auto) -->
+                        <div class="flex-grow overflow-y-auto p-2 scrollbar-hide" id="wishListContainer">
+                            <!-- 列表内容会注入到这里 -->
+                        </div>
                     </div>
 
-                    <!-- 右侧地图 (修复：手机端高度50%) -->
-                    <div class="w-full md:w-2/3 h-[50%] md:h-full relative bg-gray-100">
+                    <!-- 下半部分：地图 (Grid布局会自动填满剩余的一行) -->
+                    <div class="w-full md:w-2/3 md:h-full relative bg-gray-100 min-h-0">
                         <div id="map2026" class="map-container rounded-none bg-gray-100"></div>
                         <div class="absolute bottom-2 left-2 bg-white/80 backdrop-blur px-2 py-1 rounded text-[10px] text-gray-500 z-[400] pointer-events-none border border-white/50 shadow-sm">
                             2026 心愿路线
@@ -248,10 +251,9 @@
 
     <script>
         // ============================================
-        // 1. 你的数据配置区 (保留了你原来的数据)
+        // 1. 你的数据配置区
         // ============================================
 
-        // 配置 2025 的回忆（只需地名）
         const myMemoriesConfig = [
             { city: "上海", date: "2025.03.09", desc: "初初见你，人群中独自美丽", img: "./shanghai.png" },
             { city: "汉中", date: "2025.04.18", desc: "第一次一起参加婚礼😊", img: "./hanzhong.jpg" },
@@ -266,7 +268,6 @@
             { city: "珠穆朗玛峰", date: "2025.10.06", desc: "一起攀登世界上最高的山峰⛰", img: "./zhufeng.jpg" },
         ];
 
-        // 配置 2026 的默认愿望（只需地名）
         const myWishesConfig = ["天津", "哈尔滨", "九江", "济州岛"];
 
         // ============================================
@@ -277,7 +278,7 @@
         const GEO_CACHE_KEY = 'myLoveGeoCache';
         const GAODE_LAYER = 'http://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
         
-        // 先设置一下 localStorage，避免初次加载页面时请求 geo api 过多而报错
+        // 先设置一下 localStorage
         let geoCacheStr = localStorage.getItem(GEO_CACHE_KEY) || '';
         if (geoCacheStr == '') {
             localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(
@@ -321,20 +322,17 @@
             }
         }
 
-        // === 音乐控制 (修复版) ===
         let isPlaying = false;
         const audio = document.getElementById('bgm');
         const musicStatus = document.getElementById('musicStatus');
         const musicBtn = document.getElementById('musicPlayer');
 
-        // 监听音频加载错误
         audio.addEventListener('error', function(e) {
             console.error("音频加载失败:", e);
             musicStatus.innerText = "ERR";
             alert("背景音乐加载失败，请检查网络或更换音频源");
         });
 
-        // 监听播放结束，自动重播
         audio.addEventListener('ended', function() {
             this.currentTime = 0;
             this.play();
@@ -363,7 +361,6 @@
             }
         }
 
-        // 图标与动画
         const heartIconSVG = `<svg viewBox="0 0 24 24" fill="#ef4444" xmlns="http://www.w3.org/2000/svg" class="drop-shadow-md"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
         const styleSheet = document.createElement("style");
         styleSheet.innerText = `@keyframes bounce { 0%, 100% {transform: translateY(0);} 50% {transform: translateY(-8px);} }`;
@@ -439,7 +436,6 @@
                 const marker = L.marker([wish.lat, wish.lng], {icon: createHeartIcon(28)}).addTo(map2026).bindPopup(`<b style="color:#2563eb">${wish.city}</b>`);
                 markers2026.push(marker);
                 const item = document.createElement('div');
-                // 修复：添加 flex-none 防止列表项压缩
                 item.className = "flex items-center justify-between p-3 mb-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-blue-50 hover:shadow-sm transition group border border-transparent hover:border-blue-100 relative flex-none"; 
                 item.onclick = (e) => {
                     if(e.target.closest('.delete-btn')) return;
