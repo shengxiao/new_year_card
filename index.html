@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>李大聪明和金小胖子的爱情之旅</title>
+    
+    <!-- 引入库 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <style>
+        /* === 全局样式 === */
+        body {
+            font-family: 'Noto Serif SC', serif;
+            background: linear-gradient(180deg, #1e3c72 0%, #2a5298 40%, #ff9a9e 100%);
+            background-image: linear-gradient(180deg, #1e3c72cc 0%, #2a5298cc 40%, #ff9a9ecc 100%), url('https://www.transparenttextures.com/patterns/stardust.png');
+            color: #333;
+            overflow: hidden; 
+        }
+
+        /* === 3D 翻转 === */
+        .scene { perspective: 1500px; }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 1.0s cubic-bezier(0.68, -0.55, 0.27, 1.55); 
+            transform-style: preserve-3d;
+        }
+        .is-flipped { transform: rotateY(180deg); }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            top: 0; left: 0;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .card-front { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); z-index: 2; }
+        .card-back { transform: rotateY(180deg); background: rgba(255, 250, 250, 0.95); backdrop-filter: blur(10px); z-index: 1; display: flex; flex-direction: column; }
+
+        /* === 装饰 === */
+        .dashed-line-divider { border-top: 2px dashed #cbd5e1; position: relative; }
+        .dashed-line-divider::before, .dashed-line-divider::after {
+            content: ''; position: absolute; width: 24px; height: 24px;
+            background: #2a5298; border-radius: 50%; top: -13px;
+        }
+        .dashed-line-divider::before { left: -30px; }
+        .dashed-line-divider::after { right: -30px; }
+
+        /* === 地图控件隐藏 === */
+        .leaflet-control-attribution { display: none; }
+        .map-container { width: 100%; height: 100%; z-index: 1; }
+
+        /* === 音乐播放器动画 === */
+        .music-disc { animation: spin 4s linear infinite; animation-play-state: paused; }
+        .playing .music-disc { animation-play-state: running; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* === 飞机动画 === */
+        #plane-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 9990; 
+            display: none;
+        }
+        .fly-animation { display: block !important; animation: flyAcross 2.5s ease-in-out forwards; }
+        @keyframes flyAcross {
+            0% { transform: translate(-100px, 100vh) scale(0.5) rotate(45deg); opacity: 0; }
+            10% { opacity: 1; }
+            100% { transform: translate(100vw, -50vh) scale(1.5) rotate(45deg); opacity: 0; }
+        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        
+        /* 加载中动画 */
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        
+        /* 全局加载遮罩 */
+        #globalLoader {
+            position: absolute; inset: 0; background: rgba(255,255,255,0.9); z-index: 50;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body class="h-screen w-full flex items-center justify-center relative">
+
+    <!-- 1. 全局加载遮罩 -->
+    <div id="globalLoader" class="rounded-3xl w-[90%] max-w-[850px] h-[85vh] md:h-[600px]">
+        <div class="loading-spinner w-10 h-10 border-4 border-blue-200 border-t-blue-600 mb-4"></div>
+        <p class="text-sm text-gray-500 font-mono animate-pulse">定位爱情坐标中...</p>
+    </div>
+
+    <!-- 2. 飞机动画层 -->
+    <div id="plane-layer">
+        <svg width="100" height="100" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" class="drop-shadow-lg" style="filter: drop-shadow(3px 5px 2px rgba(0,0,0,0.3));">
+            <path d="M2 12h2l3.414-5.121L12 2l2 2-3.414 5.121L12 12h8l2 2-2 2-8 2h-1.414l3.414 5.121L12 22l-2 2-3.414-5.121L2 12z"/>
+            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+        </svg>
+    </div>
+
+    <!-- 3. 音乐播放器 (z-index 设为最高，确保可点) -->
+    <div class="fixed bottom-6 right-6 z-[10000] flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 cursor-pointer hover:bg-white/20 transition text-white shadow-lg" id="musicPlayer" onclick="toggleMusic()">
+        <div class="w-8 h-8 rounded-full bg-black flex items-center justify-center music-disc overflow-hidden border-2 border-gray-600">
+            <div class="w-2 h-2 bg-white rounded-full relative z-10"></div>
+            <div class="absolute inset-0 rounded-full border border-gray-700 opacity-60 w-3/4 h-3/4 m-auto"></div>
+        </div>
+        <div class="text-xs font-mono">
+            <p id="musicStatus">OFF</p>
+        </div>
+        <audio id="bgm" loop preload="auto">
+            <!-- Kiss The Rain -->
+            <source src="./River_Flows_In_You.mp3" type="audio/mpeg">
+        </audio>
+    </div>
+
+    <!-- 4. 主场景 -->
+    <div class="scene w-[90%] max-w-[850px] h-[85vh] md:h-[600px]">
+        <div id="cardInner" class="card-inner">
+            
+            <!-- ====== 正面：2025 回忆 ====== -->
+            <div class="card-face card-front flex flex-col p-6">
+                <div class="flex justify-between items-end pb-4 border-b border-gray-200">
+                    <div>
+                        <h1 class="text-3xl md:text-4xl font-serif font-bold text-gray-800 mt-1">2025 甜蜜航班</h1>
+                    </div>
+                    <div class="text-right hidden sm:block">
+                        <p class="font-mono text-xs text-gray-400">坐席</p>
+                        <p class="font-bold">特等座</p>
+                    </div>
+                </div>
+
+                <div class="flex-grow relative mt-4 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                    <div id="map2025" class="map-container"></div>
+                    <div class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 px-3 py-1 rounded-full text-[10px] text-gray-500 shadow z-[500] pointer-events-none">
+                        点击红心查看我们的回忆
+                    </div>
+                </div>
+
+                <div class="mt-5 flex justify-between items-center dashed-line-divider pt-4">
+                    <div class="text-xs text-gray-500 font-mono">
+                        <p>乘客: 李大聪明 & 金小胖子</p>
+                        <p>座位号: 13A & 14B</p>
+                    </div>
+                    <button onclick="flipCard()" class="px-6 py-2 bg-gray-900 text-white rounded-full text-sm hover:bg-black transition shadow-lg flex items-center gap-2 group">
+                        开启 2026 航程
+                        <svg class="w-4 h-4 group-hover:translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ====== 背面：2026 愿望 ====== -->
+            <div class="card-face card-back">
+                <div class="p-5 pb-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h1 class="text-3xl md:text-4xl font-serif font-bold text-gray-800 mt-1">2026 幸福航班</h1>
+                        </div>
+                        <button onclick="flipCard()" class="text-xs text-gray-400 hover:text-gray-600 underline">回看 2025</button>
+                    </div>
+                </div>
+
+                <div class="flex flex-col md:flex-row flex-grow overflow-hidden relative">
+                    <!-- 左侧列表 -->
+                    <div class="w-full md:w-1/3 bg-white border-r border-gray-100 flex flex-col z-10 shadow-lg md:shadow-none h-1/2 md:h-full">
+                        <div class="p-3 border-b border-gray-100 bg-white z-20">
+                            <div class="flex gap-2 relative">
+                                <input type="text" id="wishInput" placeholder="输入城市 (支持中文/英文)" class="flex-1 bg-gray-50 border border-gray-200 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-200 outline-none transition disabled:bg-gray-100">
+                                <button id="addBtn" onclick="addWish()" class="bg-blue-600 text-white rounded px-3 py-2 hover:bg-blue-700 transition shadow-sm disabled:bg-blue-300">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                </button>
+                            </div>
+                            <div id="loadingTips" class="text-[10px] text-blue-500 mt-1 hidden flex items-center gap-1">
+                                <div class="loading-spinner"></div> 正在搜索位置...
+                            </div>
+                        </div>
+                        <div class="flex-grow overflow-y-auto p-2 scrollbar-hide" id="wishListContainer"></div>
+                    </div>
+
+                    <!-- 右侧地图 -->
+                    <div class="w-full md:w-2/3 h-1/2 md:h-full relative bg-gray-100">
+                        <div id="map2026" class="map-container rounded-none bg-gray-100"></div>
+                        <div class="absolute bottom-2 left-2 bg-white/80 backdrop-blur px-2 py-1 rounded text-[10px] text-gray-500 z-[400] pointer-events-none border border-white/50 shadow-sm">
+                            2026 心愿路线
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. 照片模态框 -->
+    <div id="memoryModal" class="fixed inset-0 z-[10001] hidden flex items-center justify-center">
+        <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-[85%] max-w-sm overflow-hidden transform transition-all duration-300 scale-95 opacity-0" id="modalContent">
+            <div class="h-56 bg-gray-100 relative">
+                <img id="modalImg" src="" alt="Memory" class="w-full h-full object-cover">
+                <button onclick="closeModal()" class="absolute top-2 right-2 bg-black/30 text-white rounded-full p-1 hover:bg-black/50 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-5">
+                <div class="flex items-center gap-2 text-rose-500 mb-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <span id="modalLocation" class="font-bold text-sm tracking-wide uppercase">Location</span>
+                </div>
+                <h3 id="modalDate" class="text-xs font-bold text-gray-400 mb-3 font-mono bg-gray-100 inline-block px-2 py-1 rounded">DATE</h3>
+                <p id="modalDesc" class="text-gray-700 leading-relaxed text-sm font-serif">Description...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // 1. 你的数据配置区 (只需要修改这里！)
+        // ============================================
+
+        // 配置 2025 的回忆（只需地名）
+        const myMemoriesConfig = [
+            { city: "上海", date: "2025.03.09", desc: "初初见你，人群中独自美丽", img: "./shanghai.png" },
+            { city: "汉中", date: "2025.04.18", desc: "第一次一起参加婚礼😊", img: "./hanzhong.jpg" },
+            { city: "呼和浩特", date: "2025.05.01", desc: "第一个小长假，远赴内蒙古", img: "./huhehaote.jpg" },
+            { city: "阿尔山", date: "2025.05.03", desc: "风景虽不应季，但有你在就很开心！", img: "./aershan.jpg" },
+            { city: "温州", date: "2025.05.17", desc: "又一次参加婚礼💒", img: "./wenzhou.jpg" },
+            { city: "徐州", date: "2025.07.19", desc: "顶着烈日的周末旅行！", img: "./xuzhou.jpg" },
+            { city: "杭州", date: "2025.08.29", desc: "借着金小胖子出差的机会出去玩咯", img: "./hangzhou.jpg" },
+            { city: "长沙", date: "2025.09.05", desc: "茶颜悦色好喝，湖南美食好辣🌶", img: "./changsha.jpg" },
+            { city: "广汉", date: "2025.10.01", desc: "李大聪明的家乡！", img: "./guanghan.jpg" },
+            { city: "拉萨", date: "2025.10.02", desc: "一生必去一次的西藏，痛（高反）并快乐着！", img: "./lasa.jpg" },
+            { city: "珠穆朗玛峰", date: "2025.10.06", desc: "一起攀登世界上最高的山峰⛰", img: "./zhufeng.jpg" },
+        ];
+
+        // 配置 2026 的默认愿望（只需地名）
+        const myWishesConfig = ["天津", "哈尔滨", "九江", "济州岛"];
+
+        // ============================================
+        // 以下代码自动处理
+        // ============================================
+
+        const STORAGE_KEY = 'myLoveFlight2026Wishes';
+        const GEO_CACHE_KEY = 'myLoveGeoCache';
+        const GAODE_LAYER = 'http://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
+        
+        // 先设置一下 localStorage，避免初次加载页面时请求 geo api 过多而报错
+        let geoCacheStr = localStorage.getItem(GEO_CACHE_KEY) || '';
+        if (geoCacheStr == '') {
+            localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(
+                {"上海":{"lat":31.2312707,"lng":121.4700152},"温州":{"lat":27.9963899,"lng":120.695345},"阿尔山":{"lat":47.126311,"lng":120.396568},"杭州":{"lat":30.2489634,"lng":120.2052342},"天津":{"lat":39.3032619,"lng":117.4163641},"九江":{"lat":29.388607,"lng":115.3820227},"哈尔滨":{"lat":45.7593633,"lng":126.6276177},"济州岛":{"lat":33.3803475,"lng":126.5482545},"汉中":{"lat":33.171124,"lng":107.045009},"呼和浩特":{"lat":40.8184528,"lng":111.6601939},"长沙":{"lat":28.1987538,"lng":112.9708685},"拉萨":{"lat":29.6542054,"lng":91.1173015},"徐州":{"lat":34.2663951,"lng":117.2017621},"广汉":{"lat":30.9818013,"lng":104.2725546},"冰岛":{"lat":64.9841821,"lng":-18.1059013},"珠穆朗玛峰":{"lat":27.9880614,"lng":86.92521}}
+            ));
+            geoCacheStr = localStorage.getItem(GEO_CACHE_KEY);
+        }
+        
+        let geoCache = JSON.parse(geoCacheStr) || {};
+        
+        async function getCoords(city) {
+            if (geoCache[city]) return geoCache[city];
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                    geoCache[city] = coords;
+                    localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geoCache));
+                    return coords;
+                }
+            } catch (e) { console.warn(`查询 ${city} 失败`, e); }
+            return { lat: 39.9, lng: 116.4 };
+        }
+
+        let wishes = [];
+        let memories2025 = [];
+        let map2026;
+        let markers2026 = []; 
+
+        function flipCard() {
+            const cardInner = document.getElementById('cardInner');
+            const isFlipped = cardInner.classList.contains('is-flipped');
+            const planeLayer = document.getElementById('plane-layer');
+            cardInner.classList.toggle('is-flipped');
+            if (!isFlipped) {
+                planeLayer.classList.remove('fly-animation');
+                void planeLayer.offsetWidth; 
+                planeLayer.classList.add('fly-animation');
+                setTimeout(() => { if (map2026) map2026.invalidateSize(); }, 600);
+            }
+        }
+
+        // === 音乐控制 (修复版) ===
+        let isPlaying = false;
+        const audio = document.getElementById('bgm');
+        const musicStatus = document.getElementById('musicStatus');
+        const musicBtn = document.getElementById('musicPlayer');
+
+        // 监听音频加载错误
+        audio.addEventListener('error', function(e) {
+            console.error("音频加载失败:", e);
+            musicStatus.innerText = "ERR";
+            alert("背景音乐加载失败，请检查网络或更换音频源");
+        });
+
+        // 监听播放结束，自动重播
+        audio.addEventListener('ended', function() {
+            this.currentTime = 0;
+            this.play();
+        });
+
+        function toggleMusic() {
+            if (isPlaying) {
+                audio.pause(); 
+                musicBtn.classList.remove('playing'); 
+                musicStatus.innerText = "OFF"; 
+                isPlaying = false;
+            } else {
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(_ => {
+                        musicBtn.classList.add('playing'); 
+                        musicStatus.innerText = "ON"; 
+                        isPlaying = true;
+                    })
+                    .catch(error => {
+                        console.error("播放被阻止:", error);
+                        musicStatus.innerText = "Err";
+                        alert("播放失败。这通常是因为浏览器限制自动播放，请先点击页面其他区域后再试。");
+                    });
+                }
+            }
+        }
+
+        // 图标与动画
+        const heartIconSVG = `<svg viewBox="0 0 24 24" fill="#ef4444" xmlns="http://www.w3.org/2000/svg" class="drop-shadow-md"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `@keyframes bounce { 0%, 100% {transform: translateY(0);} 50% {transform: translateY(-8px);} }`;
+        document.head.appendChild(styleSheet);
+        const createHeartIcon = (size = 24) => L.divIcon({ className: 'bg-transparent', html: `<div style="width:${size}px; height:${size}px; animation: bounce 2s infinite;">${heartIconSVG}</div>`, iconSize: [size, size], iconAnchor: [size/2, size] });
+
+        async function initData() {
+            const loader = document.getElementById('globalLoader');
+            const memPromises = myMemoriesConfig.map(async (item) => {
+                const coords = await getCoords(item.city);
+                return { ...item, lat: coords.lat, lng: coords.lng, location: item.city };
+            });
+            memories2025 = await Promise.all(memPromises);
+
+            const savedWishes = localStorage.getItem(STORAGE_KEY);
+            if (savedWishes) {
+                wishes = JSON.parse(savedWishes);
+            } else {
+                const wishPromises = myWishesConfig.map(async (city, index) => {
+                    const coords = await getCoords(city);
+                    return { id: index + 1, city: city, lat: coords.lat, lng: coords.lng };
+                });
+                wishes = await Promise.all(wishPromises);
+            }
+            loader.style.display = 'none';
+            initMap2025();
+            setTimeout(() => initMap2026(), 500);
+        }
+
+        const initMap2025 = () => {
+            const map = L.map('map2025', { zoomControl: false, attributionControl: false }).setView([35, 105], 3);
+            L.tileLayer(GAODE_LAYER, { subdomains: ["1", "2", "3", "4"] }).addTo(map);
+            const group = L.featureGroup();
+            memories2025.forEach(mem => {
+                const marker = L.marker([mem.lat, mem.lng], {icon: createHeartIcon(20)}).addTo(map);
+                marker.on('click', () => openModal(mem));
+                group.addLayer(marker);
+            });
+            if(memories2025.length > 0) map.fitBounds(group.getBounds(), {padding: [30, 30]});
+        };
+
+        const initMap2026 = () => {
+            map2026 = L.map('map2026', { zoomControl: true, attributionControl: false }).setView([35, 110], 4);
+            L.tileLayer(GAODE_LAYER, { subdomains: ["1", "2", "3", "4"] }).addTo(map2026);
+            renderWishes();
+        };
+
+        const modal = document.getElementById('memoryModal');
+        const modalContent = document.getElementById('modalContent');
+        
+        function openModal(data) {
+            document.getElementById('modalImg').src = data.img;
+            document.getElementById('modalLocation').innerText = data.location;
+            document.getElementById('modalDate').innerText = data.date;
+            document.getElementById('modalDesc').innerText = data.desc;
+            modal.classList.remove('hidden');
+            setTimeout(() => { modalContent.classList.remove('scale-95', 'opacity-0'); modalContent.classList.add('scale-100', 'opacity-100'); }, 10);
+        }
+        function closeModal() {
+            modalContent.classList.remove('scale-100', 'opacity-100'); modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function saveWishes(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+        const renderWishes = () => {
+            const listContainer = document.getElementById('wishListContainer');
+            listContainer.innerHTML = '';
+            markers2026.forEach(m => m.remove());
+            markers2026 = [];
+
+            wishes.forEach(wish => {
+                const marker = L.marker([wish.lat, wish.lng], {icon: createHeartIcon(28)}).addTo(map2026).bindPopup(`<b style="color:#2563eb">${wish.city}</b>`);
+                markers2026.push(marker);
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between p-3 mb-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-blue-50 hover:shadow-sm transition group border border-transparent hover:border-blue-100 relative";
+                item.onclick = (e) => {
+                    if(e.target.closest('.delete-btn')) return;
+                    map2026.flyTo([wish.lat, wish.lng], 6, { duration: 1.5 });
+                    marker.openPopup();
+                };
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-lg shadow-sm border border-gray-100">✈️</div>
+                        <div><p class="text-sm font-bold text-gray-700">${wish.city}</p><p class="text-[10px] text-gray-400">WAITING FOR US</p></div>
+                    </div>
+                    <button class="delete-btn p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition" onclick="deleteWish(${wish.id})">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                `;
+                listContainer.appendChild(item);
+            });
+        };
+
+        const addWish = async () => {
+            const input = document.getElementById('wishInput');
+            const addBtn = document.getElementById('addBtn');
+            const loadingTips = document.getElementById('loadingTips');
+            const city = input.value.trim();
+            if(!city) return;
+            input.disabled = true; addBtn.disabled = true; loadingTips.classList.remove('hidden');
+            try {
+                const coords = await getCoords(city);
+                wishes.unshift({ id: Date.now(), city: city, lat: coords.lat, lng: coords.lng });
+                saveWishes(wishes); renderWishes();
+                input.value = ''; map2026.flyTo([coords.lat, coords.lng], 6);
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            } catch (error) { console.error(error); alert("搜索失败，请重试"); } 
+            finally { input.disabled = false; addBtn.disabled = false; loadingTips.classList.add('hidden'); input.focus(); }
+        };
+
+        const deleteWish = (id) => {
+            if(confirm('确定删除吗？')) { wishes = wishes.filter(w => w.id !== id); saveWishes(wishes); renderWishes(); }
+        };
+
+        document.addEventListener('DOMContentLoaded', initData);
+    </script>
+</body>
+</html>
